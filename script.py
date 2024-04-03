@@ -4,6 +4,7 @@ from tensorflow.keras import datasets, layers, models, preprocessing
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import numpy as np
+import pydicom as dicom
 
 class_names = [
     "Non Demented",
@@ -116,57 +117,67 @@ width = 248
 height = 496
 channels = 1
 
+def buildVGG():
+    return models.Sequential([
+        layers.Conv3D(filters=16, kernel_size=3, activation='relu', input_shape=(depth, height, width, channels)),
+        layers.Conv3D(filters=16, kernel_size=3, activation='relu', input_shape=(depth, height, width, channels)),
+
+        
+        layers.MaxPooling3D(pool_size=2),
+
+        layers.Conv3D(filters=32, kernel_size=3, activation='relu'),
+        layers.Conv3D(filters=32, kernel_size=3, activation='relu'),
+
+        layers.MaxPooling3D(pool_size=2),
+
+        layers.Conv3D(filters=32, kernel_size=3, activation='relu'),
+        layers.Conv3D(filters=32, kernel_size=3, activation='relu'),
+        layers.Conv3D(filters=32, kernel_size=3, activation='relu'),
+
+        layers.MaxPooling3D(pool_size=2),
+        
+        layers.Flatten(),
+
+        layers.Dense(4, activation='softmax')
+    ])
+
 
 #make model
-model = models.Sequential([
-    layers.Conv3D(
-        filters=16, 
-        kernel_size=5, 
-        activation='relu',
-        input_shape=(depth, height, width, channels)
-    ),
-    layers.MaxPooling3D(pool_size=2),
-
-    layers.Conv3D(
-        filters=16,
-        kernel_size=3,
-        activation='relu'
-    ),
-
-    layers.Conv3D(
-        filters=32,
-        kernel_size=3,
-        activation='relu'
-    ),
-
-    layers.Conv3D(
-        filters=32,
-        kernel_size=3,
-        activation='relu'
-    ),
-
-
-    layers.Flatten(),
-
-    layers.Dense(4, activation='softmax')
-])
+model = buildVGG()
 
 model.compile(
     optimizer='adam',
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     metrics=[tf.keras.metrics.SparseCategoricalAccuracy()]
 )
-
 model.summary()
 
+
 train_dataset = dataset3d
+
+
+plt.ion()
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+losses = []
+
+class myCallback(tf.keras.callbacks.Callback):
+    def on_train_batch_end(self, batch, logs=None):
+        #update graph and display
+
+        #print(logs.keys())
+        
+        ## loss or sparse_categorical_accuracy
+        losses.append(logs["sparse_categorical_accuracy"])
+        ax.plot(range(len(losses)),losses)
+        fig.canvas.draw()
+        fig.canvas.flush_events()
 
 model.fit(
     train_dataset.batch(batchSize),
     epochs=2,
     batch_size=batchSize,
-    callbacks=[checkpoint_callback],
+    callbacks=[checkpoint_callback,myCallback()],
     shuffle=True
 )
-
-
