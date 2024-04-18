@@ -3,56 +3,49 @@ import tensorflow as tf
 from tensorflow.keras import losses, metrics
 
 import preprocessing
-from preprocessing import dataset
-from interface import DataBrowser, selectArchitecture
+from preprocessing import class_distribution, generator_dataset, write_tfrecord, _parse_function
+from interface import DataBrowser, selectArchitecture, PerformanceProfiler
 from architectures import buildModel
-from env import batchSize
+import env
 
-preprocessing.debug = True
+dataset = generator_dataset()
+#write_tfrecord(dataset,'data/ADNI1_dataset_2000.tfrecord')
+#input("finished")
 
-test = DataBrowser(dataset,4)
+#dataset = tf.data.TFRecordDataset('data/ADNI1_dataset_2000.tfrecord').map(_parse_function)
 
+class_dist = class_distribution(dataset)
+class_weights = {i:1/d for i, d in enumerate(class_dist)}
 
-preprocessing.debug = False
-architecture = selectArchitecture()
+DataBrowser(dataset,4,class_dist)
+selectArchitecture()
 
+model = buildModel()
 
-model = buildModel(architecture)
+boundaries = [500/env.batchSize, 1000/env.batchSize, 2000/env.batchSize]
+values = [0.01, 0.005, 0.001, 0.0001]
+lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
 
 model.compile(
-    optimizer = 'adam',
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule),
     loss = losses.SparseCategoricalCrossentropy(from_logits=True),
     metrics = [metrics.SparseCategoricalAccuracy()]
 )
 model.summary()
 
-train_dataset = dataset # split into train and validation sets
+
+env.debug = False
 
 
-from interface import MetricsFigure
-
-profiler = MetricsFigure()
-
-loss = []
-accuracy = []
-class recordMetrics(tf.keras.callbacks.Callback):
-    def on_train_batch_end(self, batch, logs=None):
-
-        accuracy.append(logs["sparse_categorical_accuracy"])
-        profiler.plotAccuracy(accuracy)
-
-        loss.append(logs["loss"])
-        profiler.plotLoss(loss)
-
-        profiler.updateCanvas()
 
 
 model.fit(
-    x=train_dataset.batch(batchSize),
-    epochs=2,
-    batch_size=batchSize,
-    callbacks=[recordMetrics()],
-    shuffle=True
+    x=dataset.batch(env.batchSize),
+    epochs=env.epochs,
+    batch_size=env.batchSize,
+    callbacks=[PerformanceProfiler()],
+    shuffle=True,
+    class_weight=class_weights
 )
 
 import matplotlib.pyplot as plt

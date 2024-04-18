@@ -1,9 +1,17 @@
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+
 from matplotlib.widgets import Slider, Button, RadioButtons
+import time
 
+import csv
 
+import env
+from env import classes, num_classes, label_map
 
-architecture = 'VGG-16'
+import numpy as np
+
+from preprocessing import class_distribution
 
 
 class DataBrowser():
@@ -13,24 +21,35 @@ class DataBrowser():
     samples = []
     UI = []
     layer = 0
+    gridspec = None
 
-    def __init__(self,dataset,sampleCount):
+    def __init__(self,dataset,sampleCount,class_dist):
+        plt.style.use('dark_background')
         self.dataset = dataset
         self.sampleCount = sampleCount
-        self.figure = plt.figure(figsize=(10,4))
 
-        self.layer = 0
+        self.figure = plt.figure(figsize=(10,5))
+        self.gridspec = gridspec.GridSpec(nrows=2, ncols=sampleCount, height_ratios=[2, 1])
+
+        labels = classes
+        sizes = class_dist
+
+        plt.subplot(self.gridspec[0,0])
+        plt.pie(sizes, labels=labels)
 
         self.load_samples()
+
+        imgdepth = self.samples[0]["pixel_array"].shape[0]-1
+        self.layer = imgdepth//2
 
         self.display_samples()
 
         layer_slider = Slider(
-            ax=plt.axes([0.1,0.1,0.8,0.05]), 
+            ax=plt.axes([0.1,0.1,0.8,0.025]), 
             label="layer",
             valmin=0, 
-            valmax=self.samples[0]["pixel_array"].shape[0]-1, 
-            valinit=0, 
+            valmax=imgdepth, 
+            valinit=self.layer, 
             valstep=1
         )
         layer_slider.on_changed(self.update_layer)
@@ -38,7 +57,8 @@ class DataBrowser():
 
         new_set_button = Button(
             plt.axes([0.9, 0.5, 0.1, 0.1]),
-            label="new selection"
+            color="0.1",
+            label="new samples"
         )
         new_set_button.on_clicked(self.update_samples)
 
@@ -48,28 +68,32 @@ class DataBrowser():
         self.samples = []
 
         dataIterator = self.dataset.take(self.sampleCount).as_numpy_iterator()
+        start_time = time.time()
         for (_inputs, _output) in dataIterator:
+            loaded_time = time.time()
+            print("load time:", loaded_time-start_time)
             self.samples.append({
                 "pixel_array":_inputs[0],
                 "age": str(_inputs[1]),
-                "sex": ["Male","Female"][_inputs[2]],
-                "diagnosis": ['CN','SMC','EMCI','MCI','LMCI','AD'][_output]
+                "sex": ["Male","Female"][_inputs[2][1]],
+                "diagnosis": classes[_output]
             })
+            start_time=time.time()
     
     def display_samples(self):
         self.UI = []
 
         for i, sample in enumerate(self.samples):
-            plt.subplot(1,self.sampleCount,1+i)
+            plt.subplot(self.gridspec[1,i])
             plt.axis("off")
 
             label_UI = plt.title("\n".join([
                 "DX: " + sample["diagnosis"],
                 "Age: " + sample["age"],
                 "Sex: " + sample["sex"]
-            ]))
+            ]),fontsize = 12)
 
-            slice_UI = plt.imshow(sample["pixel_array"][0],cmap='gray',vmin=0, vmax=1)
+            slice_UI = plt.imshow(sample["pixel_array"][self.layer],cmap='gray',vmin=0, vmax=1)
 
             self.UI.append({
                 "label":label_UI, 
@@ -83,7 +107,6 @@ class DataBrowser():
 
     def update_samples(self,val=None):
 
-        #self.load_samples()
         self.samples = []
         dataIterator = self.dataset.take(self.sampleCount).as_numpy_iterator()
         for i, (_inputs, _output) in enumerate(dataIterator):
@@ -91,8 +114,8 @@ class DataBrowser():
             sample = {
                 "pixel_array":_inputs[0],
                 "age": str(_inputs[1]),
-                "sex": ["Male","Female"][_inputs[2]],
-                "diagnosis": ['CN','SMC','EMCI','MCI','LMCI','AD'][_output]
+                "sex": ["Male","Female"][_inputs[2][1]],
+                "diagnosis": classes[_output]
             }
 
             self.samples.append(sample)
@@ -107,17 +130,10 @@ class DataBrowser():
             self.figure.canvas.flush_events()
 
 
-        #for i, sample in enumerate(self.samples):
-        #        self.UI[i]["label"].set_text("\n".join([
-        #            "DX: " + sample["diagnosis"],
-        #            "Age: " + sample["age"],
-        #            "Sex: " + sample["sex"]
-        #        ]))
-        #        self.UI[i]["image"].set_data(sample["pixel_array"][0])
-
-
 
 def selectArchitecture():
+    
+    plt.style.use('default')
     plt.figure(figsize=(4,4))
 
     radio = RadioButtons(
@@ -125,36 +141,65 @@ def selectArchitecture():
         ('VGG-16', 'UNet', 'ResNet')
     )
     def setArchitecture(label):
-        global architecture
-        architecture = label
+        #global architecture
+        env.architecture = label
     radio.on_clicked(setArchitecture)
 
     plt.show()
 
-    return architecture
+    return env.architecture
 
+import tensorflow as tf
+
+class PerformanceProfiler(tf.keras.callbacks.Callback):
+
+    def __init__(self):
+        self.profiler = MetricsFigure()
+    def on_train_batch_end(self, batch, logs=None):
+
+        self.profiler.accuracy.append(logs["sparse_categorical_accuracy"])
+        #profiler.plotAccuracy(accuracy)
+
+        self.profiler.loss.append(logs["loss"])
+        #profiler.plotLoss(loss)
+
+        self.profiler.updateCanvas()
 
 class MetricsFigure():
     figure = None
     accuracyPlot = None
     lossPlot = None
 
-    def __init__(self):
-        plt.ion()
-        self.figure = plt.figure()
+    loss = []
+    accuracy = []
 
+    def __init__(self):
+        self.loss = []
+        self.accuracy = []
+
+        plt.ion()
+        self.figure = plt.figure(figsize=(5,8))
+
+        stats = [
+            "epochs: %s" % env.epochs,
+            "architecture: %s" % env.architecture,
+            "batch size: %s" % env.batchSize,
+            "dataset: %s" % env.dataset_props["name"]
+        ]
+
+        self.figure.text(0,0,"\n".join(stats))
+        
         self.accuracyPlot = self.figure.add_subplot(211)
+        plt.title("Accuracy")
         plt.grid()
 
         self.lossPlot = self.figure.add_subplot(212)
+        plt.title("Loss")
         plt.grid()
     
-    def plotAccuracy(self, accuracy):
-        self.accuracyPlot.plot(range(len(accuracy)),accuracy)
-
-    def plotLoss(self, loss):
-        self.lossPlot.plot(range(len(loss)),loss)
-    
     def updateCanvas(self):
+        self.accuracyPlot.plot(range(len(self.accuracy)),self.accuracy, color='red')
+        self.lossPlot.plot(range(len(self.loss)),self.loss, color='red')
+
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()

@@ -5,12 +5,13 @@ from tensorflow.keras import layers
 from tensorflow.keras.layers import Input, Flatten, Dense, Concatenate, Conv3D, MaxPooling3D, BatchNormalization, GlobalAveragePooling3D, Activation, Add
 from tensorflow.keras.models import Model, Sequential
 
+import env
 from env import image_shape, num_classes
 
 #the vgg-16 base, without the top
 def VGG_16_3D():
-    t = 64 #t for test lol just a scale of model depth, but hardcoding the proportional sizes if that makes sense like this layer will be the same relative scale from others
-    pool = (1,2,2)
+    t = 32 #t for test lol just a scale of model depth, but hardcoding the proportional sizes if that makes sense like this layer will be the same relative scale from others
+    pool = (2,2,2)
     
     return Sequential([
 
@@ -45,6 +46,7 @@ def VGG_16_3D():
         #Dense(units=num_classes, activation='softmax')
         
     ])
+
 
 # unet
 def conv_block(input_tensor, num_filters):
@@ -91,22 +93,20 @@ def unet_3d():
     decoder1 = decoder_block(decoder2, encoder1, 64)
     decoder0 = decoder_block(decoder1, encoder0, 32)
 
-    outputs = Conv3D(1, (1, 1, 1), activation='sigmoid')(decoder0)
+    outputs = Conv3D(filters=1, kernel_size=1, activation='sigmoid')(decoder0)
 
-    model = Model(inputs=[inputs], outputs=[outputs])
-
-    return model
+    return Model(inputs=[inputs], outputs=[outputs])
 
 
 #resnet
-def conv3d_bn(x, filters, kernel_size, strides=(1, 1, 1), padding='same', activation='relu'):
+def conv3d_bn(x, filters, kernel_size, strides=1, padding='same', activation='relu'):
     x = Conv3D(filters, kernel_size, strides=strides, padding=padding)(x)
     x = BatchNormalization()(x)
-    if activation:
-        x = Activation(activation)(x)
+
+    x = Activation(activation)(x)
     return x
 
-def residual_block(x, filters, kernel_size=(3, 3, 3), strides=(1, 1, 1), activation='relu'):
+def residual_block(x, filters, kernel_size=3, strides=1, activation='relu'):
     shortcut = x
 
     x = conv3d_bn(x, filters, kernel_size, strides, activation=activation)
@@ -122,50 +122,71 @@ def residual_block(x, filters, kernel_size=(3, 3, 3), strides=(1, 1, 1), activat
 def resnet_3d():
     inputs = Input(image_shape)
 
-    x = conv3d_bn(inputs, 64, (7, 7, 7), strides=(2, 2, 2))
-    x = MaxPooling3D(pool_size=(3, 3, 3), strides=(2, 2, 2), padding='same')(x)
+    x = conv3d_bn(inputs, filters=64, kernel_size=7, strides=2)
+    x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)
 
     x = residual_block(x, 64)
     x = residual_block(x, 64)
     x = residual_block(x, 64)
 
-    x = residual_block(x, 128, strides=(2, 2, 2))
+    x = residual_block(x, 128, strides=2)
     x = residual_block(x, 128)
     x = residual_block(x, 128)
     x = residual_block(x, 128)
 
     x = GlobalAveragePooling3D()(x)
-    outputs = Dense(num_classes, activation='softmax')(x)
+    outputs = Dense(512, activation='relu')(x)
 
-    model = tf.keras.Model(inputs=inputs, outputs=outputs)
-    return model
+    return Model(inputs=inputs, outputs=outputs)
 
 
-def buildModel(architecture):
+#full model
+def buildModel():
+
     age_input = Input(shape=(1,))
-    age_dense = Dense(256, activation='relu')(age_input)
-
-    sex_input = Input(shape=(1,))
-    sex_dense = Dense(256, activation='relu')(sex_input)
-
+    sex_input = Input(shape=(2,))
+    race_input = Input(shape=(7,))
     #weight_input = Input(shape=(1,))
-    #weight_dense = Dense(256, activation='relu')(weight_input)
-
+    
     image_input = Input(shape=image_shape)
 
-    if(architecture=='UNet'):
+    numerical_data = Concatenate()([age_input, sex_input, race_input])
+    numerical_branch = Dense(512, activation='relu')(numerical_data)
+
+    #age_dense = Dense(256, activation='relu')(age_input)
+    #sex_dense = Dense(256, activation='relu')(sex_input)
+    #race_dense = Dense(256, activation='relu')(race_input)
+    #weight_dense = Dense(256, activation='relu')(weight_input)
+
+    if(env.architecture=='UNet'):
         image_output =  unet_3d()(image_input)
-    elif(architecture=='VGG-16'):
+    elif(env.architecture=='VGG-16'):
         image_output =  VGG_16_3D()(image_input)
-    elif(architecture=='ResNet'):
+    elif(env.architecture=='ResNet'):
         image_output =  resnet_3d()(image_input)
-    
     image_output = Flatten()(image_output)
 
-    concatenated = Concatenate()([image_output, age_dense, sex_dense])#, weight_dense])
-    concat_dense = Dense(units=512,activation='relu')(concatenated)
-    concat_dense = Dense(units=512,activation='relu')(concat_dense)
 
+    combined = Concatenate()([numerical_branch, image_output])
+    feature_inputs = [
+        image_input, 
+        age_input,
+        sex_input,
+        race_input,
+        #weight_input
+    ]
+    #feature_outputs = [
+    #    image_output, 
+    #    age_dense, 
+    #    sex_dense,
+    #    race_dense, 
+    #    #weight_dense
+    #]
+
+    #concatenated = Concatenate()(feature_outputs)
+    #concat_dense = Dense(units=512,activation='relu')(concatenated)
+    concat_dense = Dense(units=512,activation='relu')(combined)
+    concat_dense = Dense(units=512,activation='relu')(concat_dense)
     output = Dense(units=num_classes)(concat_dense)
 
-    return Model(inputs=[image_input, age_input,sex_input], outputs=output)#,weight_input], outputs=output)
+    return Model(inputs=feature_inputs, outputs=output)#,weight_input], outputs=output)
