@@ -9,21 +9,24 @@ from architectures import buildModel
 import env
 
 dataset = generator_dataset()
+
 #write_tfrecord(dataset,'data/ADNI1_dataset_2000.tfrecord')
 #input("finished")
 
+
 #dataset = tf.data.TFRecordDataset('data/ADNI1_dataset_2000.tfrecord').map(_parse_function)
+
 
 class_dist = class_distribution(dataset)
 class_weights = {i:1/d for i, d in enumerate(class_dist)}
 
 DataBrowser(dataset,4,class_dist)
-selectArchitecture()
+#selectArchitecture()
 
 model = buildModel()
 
 boundaries = [500/env.batchSize, 1000/env.batchSize, 2000/env.batchSize]
-values = [0.01, 0.005, 0.001, 0.0001]
+values = [1e-2, 5e-3, 1e-3, 1e-4]
 lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
 
 model.compile(
@@ -36,11 +39,10 @@ model.summary()
 
 env.debug = False
 
-
-
+training_data = dataset.take(128).cache("training_cache")
 
 model.fit(
-    x=dataset.batch(env.batchSize),
+    x=training_data.batch(env.batchSize),
     epochs=env.epochs,
     batch_size=env.batchSize,
     callbacks=[PerformanceProfiler()],

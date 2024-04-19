@@ -58,7 +58,9 @@ def getMeta(constraint):
                 matches = [row[column]==value for column,value in column_values]
                 if all(matches):
                     for feature in link["table"]["features"].values():
+                        #print(metadata.get(feature["name"]))
                         if metadata.get(feature["name"]):
+                            # if we already have this feature, skip it
                             continue
 
                         feature_value = row[feature["column"]]
@@ -162,7 +164,7 @@ def loadNii(imageDir):
     return image
 
 def generateDataset():
-    for subjectDir in tf.data.Dataset.list_files("%s/*/*/*/*" % images_directory): #for each scan
+    for subjectDir in tf.data.Dataset.list_files("%s/*/*/*/*" % images_directory,shuffle=True): #for each scan
         
         scanDir = subjectDir.numpy().decode("ascii") # image directory path
         imageID = scanDir.split("\\")[-1] # extract image ID from file path
@@ -182,10 +184,7 @@ def generateDataset():
         yield (
             (
                 volume, 
-                metadata["Age"],
-                metadata["Sex"],
-                metadata["Race"],
-                #metadata["weight"]
+                *[metadata[k] for k in env.dataset_props["features"]]
             ),
             metadata["Group"]
         )
@@ -196,10 +195,7 @@ def generator_dataset():
         output_signature=(
             (
                 tf.TensorSpec(shape=image_shape, dtype=tf.float32), # image
-                tf.TensorSpec(shape=(), dtype=tf.float16), # age
-                tf.TensorSpec(shape=(2,), dtype=tf.uint8), # sex
-                tf.TensorSpec(shape=(7,), dtype=tf.uint8), # race
-                #tf.TensorSpec(shape=(), dtype=tf.float16), # weight
+                *dataset_props["feature_specs"]
             ),
             tf.TensorSpec(shape=(), dtype=tf.uint8)
         )

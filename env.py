@@ -1,5 +1,5 @@
 
-#import tensorflow as tf
+import tensorflow as tf
 #from preprocessing import _parse_function, generator_dataset
 
 
@@ -254,13 +254,33 @@ ADNI1_set = {
     "image_format" : "nii",
     "image_shape" : (128, 128, 90, 1), # not source, what the images are resized to.     #(256, 256, 180, 1), # (width, height, depth, channels)
 
-    #"csv_path" : "data/ADNI1_Complete 1Yr 1.5T/ADNI1_Complete_1Yr_1.5T_4_14_2024.csv",
+    "features":[
+        "Age",
+        "Sex",
+        "Race",
+
+        "Weight",
+        "Weight Unit"
+    ],
+    "feature_specs":[
+        tf.TensorSpec(shape=(), dtype=tf.float16), # age
+        tf.TensorSpec(shape=(2,), dtype=tf.uint8), # sex
+        tf.TensorSpec(shape=(7,), dtype=tf.uint8), # race
+
+        tf.TensorSpec(shape=(), dtype=tf.float16), # weight
+        tf.TensorSpec(shape=(), dtype=tf.float16), # weight unit
+    ],
+    "feature_inputs":[
+        (1,),
+        (2,),
+        (7,),
+        
+        (1,),
+        (1,)
+    ],
+
     "classes" : ["CN","MCI","AD"],
-    #"label_map" : {
-    #    "CN":0,
-    #    "MCI":1,
-    #    "AD":2, "Dementia":2
-    #},
+    
 
     #"dataset" : lambda : generator_dataset()
 }
@@ -293,6 +313,6 @@ demographic = "adni documentation/PTDEMOG_16Apr2024.csv"
 label_map = dataset_props.get("label_map")
 
 batchSize = 2
-epochs = 1
+epochs = 5
 debug = True
 architecture = 'ResNet'

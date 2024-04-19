@@ -43,18 +43,26 @@ class DataBrowser():
         self.layer = imgdepth//2
 
         self.display_samples()
+        self.display_slider()
+
+        self.display_samples_button()
+
+        plt.show()
+
+    def display_slider(self):
+        volume_depth = self.samples[0]["pixel_array"].shape[0]-1
 
         layer_slider = Slider(
             ax=plt.axes([0.1,0.1,0.8,0.025]), 
             label="layer",
             valmin=0, 
-            valmax=imgdepth, 
+            valmax=volume_depth, 
             valinit=self.layer, 
             valstep=1
         )
         layer_slider.on_changed(self.update_layer)
-
-
+    
+    def display_samples_button(self):
         new_set_button = Button(
             plt.axes([0.9, 0.5, 0.1, 0.1]),
             color="0.1",
@@ -62,8 +70,7 @@ class DataBrowser():
         )
         new_set_button.on_clicked(self.update_samples)
 
-        plt.show()
-    
+
     def load_samples(self):
         self.samples = []
 

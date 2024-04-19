@@ -143,15 +143,18 @@ def resnet_3d():
 #full model
 def buildModel():
 
-    age_input = Input(shape=(1,))
-    sex_input = Input(shape=(2,))
-    race_input = Input(shape=(7,))
+    #age_input = Input(shape=(1,))
+    #sex_input = Input(shape=(2,))
+    #race_input = Input(shape=(7,))
     #weight_input = Input(shape=(1,))
+
+    demographic_inputs = [Input(shape=x) for x in env.dataset_props["feature_inputs"]]
+
+    numerical_data = Concatenate()(demographic_inputs)
+    numerical_branch = Dense(512, activation='relu')(numerical_data)
     
     image_input = Input(shape=image_shape)
 
-    numerical_data = Concatenate()([age_input, sex_input, race_input])
-    numerical_branch = Dense(512, activation='relu')(numerical_data)
 
     #age_dense = Dense(256, activation='relu')(age_input)
     #sex_dense = Dense(256, activation='relu')(sex_input)
@@ -170,23 +173,11 @@ def buildModel():
     combined = Concatenate()([numerical_branch, image_output])
     feature_inputs = [
         image_input, 
-        age_input,
-        sex_input,
-        race_input,
-        #weight_input
+        *demographic_inputs
     ]
-    #feature_outputs = [
-    #    image_output, 
-    #    age_dense, 
-    #    sex_dense,
-    #    race_dense, 
-    #    #weight_dense
-    #]
 
-    #concatenated = Concatenate()(feature_outputs)
-    #concat_dense = Dense(units=512,activation='relu')(concatenated)
     concat_dense = Dense(units=512,activation='relu')(combined)
     concat_dense = Dense(units=512,activation='relu')(concat_dense)
     output = Dense(units=num_classes)(concat_dense)
 
-    return Model(inputs=feature_inputs, outputs=output)#,weight_input], outputs=output)
+    return Model(inputs=feature_inputs, outputs=output)
