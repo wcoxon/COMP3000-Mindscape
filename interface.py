@@ -1,39 +1,84 @@
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-
 from matplotlib.widgets import Slider, Button, RadioButtons
 import time
 
-import csv
-
 import env
-from env import classes, num_classes, label_map
-
-import numpy as np
-
-from preprocessing import class_distribution
 
 
+
+class toggle():
+
+    def __init__(self,rect,label=None):
+        self.label = label
+
+        self.widget = Button(
+            plt.axes(rect),
+            label
+        )
+        self.set_state(False)
+    
+    def set_state(self, state):
+        self.state= state
+        if state : self.widget.color,self.widget.hovercolor = '0.9', '0.95'
+        else : self.widget.color,self.widget.hovercolor = "0.6", "0.65"
+        plt.gcf().canvas.draw()
+        plt.gcf().canvas.flush_events()
+
+class selection():
+
+    def __init__(self, prompt, rect, options):
+
+        self.selected = None
+
+        plt.axes([0,0,1,1]).text(0.5,rect[1]+rect[3],prompt,fontsize=18,ha="center")
+
+        self.toggles = []
+        toggle_height = rect[3]/len(options)
+        for i,option in enumerate(options):
+            toggle_bottom = rect[1]+i*toggle_height
+
+            new_toggle = toggle([rect[0],toggle_bottom,rect[2],toggle_height],option)
+            new_toggle.widget.on_clicked(self.on_clicked(i))
+            self.toggles.append(new_toggle)
+        
+        plt.draw()
+        
+
+    def on_clicked(self,index):
+        def select(val):
+            self.selected = index
+            for t in self.toggles:
+                t.set_state(False)
+            self.toggles[index].set_state(True)
+        return select
+
+plt.rcParams['toolbar']='None'
 class DataBrowser():
-    figure = None
-    dataset = None
-    sampleCount = 0
-    samples = []
-    UI = []
-    layer = 0
-    gridspec = None
 
-    def __init__(self,dataset,sampleCount,class_dist):
+    def __init__(self,dsm,sampleCount):
         plt.style.use('dark_background')
-        self.dataset = dataset
+        
+        self.dsm = dsm
+        self.dataset = dsm.dataset
         self.sampleCount = sampleCount
 
-        self.figure = plt.figure(figsize=(10,5))
+        self.figure, self.ax = plt.subplots()
         self.gridspec = gridspec.GridSpec(nrows=2, ncols=sampleCount, height_ratios=[2, 1])
 
-        labels = classes
-        sizes = class_dist
+        stats = [
+            "dataset name: %s" % dsm.manifest["name"],
+            "volume shape: %s" % str(dsm.image_shape),
+            "features: %s" % [feature["name"] for feature in dsm.manifest["features"]]
+        ]
 
+        
+        self.figure.text(1,1, "\n".join(stats), fontsize=10, ha='right', va='top')
+
+
+        labels = dsm.classes
+        sizes = dsm.class_distribution
         plt.subplot(self.gridspec[0,0])
         plt.pie(sizes, labels=labels)
 
@@ -43,10 +88,18 @@ class DataBrowser():
         self.layer = imgdepth//2
 
         self.display_samples()
-        self.display_slider()
+        layer_slider = self.display_slider()
+        reroll_button = self.display_samples_button()
 
-        self.display_samples_button()
+        proceed_button = Button(
+            plt.axes([0.8, 0.3, 0.1, 0.1]),
+            color="0.1",
+            label="proceed"
+        )
+        proceed_button.on_clicked(lambda val : plt.close())
 
+        
+        plt.get_current_fig_manager().window.state('zoomed')
         plt.show()
 
     def display_slider(self):
@@ -61,14 +114,16 @@ class DataBrowser():
             valstep=1
         )
         layer_slider.on_changed(self.update_layer)
+        return layer_slider
     
     def display_samples_button(self):
         new_set_button = Button(
-            plt.axes([0.9, 0.5, 0.1, 0.1]),
+            plt.axes([0.8, 0.5, 0.1, 0.1]),
             color="0.1",
             label="new samples"
         )
         new_set_button.on_clicked(self.update_samples)
+        return new_set_button
 
 
     def load_samples(self):
@@ -81,9 +136,9 @@ class DataBrowser():
             print("load time:", loaded_time-start_time)
             self.samples.append({
                 "pixel_array":_inputs[0],
-                "age": str(_inputs[1]),
-                "sex": ["Male","Female"][_inputs[2][1]],
-                "diagnosis": classes[_output]
+                "diagnosis": self.dsm.classes[_output],
+
+                **{feature["name"] : feature["tostring"](_inputs[i+1]) for i, feature in enumerate(self.dsm.manifest["features"])}
             })
             start_time=time.time()
     
@@ -95,10 +150,8 @@ class DataBrowser():
             plt.axis("off")
 
             label_UI = plt.title("\n".join([
-                "DX: " + sample["diagnosis"],
-                "Age: " + sample["age"],
-                "Sex: " + sample["sex"]
-            ]),fontsize = 12)
+                *["%s: %s" % (key, value) for key, value in sample.items() if key != "pixel_array"]
+            ]),fontsize = 8)
 
             slice_UI = plt.imshow(sample["pixel_array"][self.layer],cmap='gray',vmin=0, vmax=1)
 
@@ -116,85 +169,104 @@ class DataBrowser():
 
         self.samples = []
         dataIterator = self.dataset.take(self.sampleCount).as_numpy_iterator()
+
+        
         for i, (_inputs, _output) in enumerate(dataIterator):
             
             sample = {
                 "pixel_array":_inputs[0],
-                "age": str(_inputs[1]),
-                "sex": ["Male","Female"][_inputs[2][1]],
-                "diagnosis": classes[_output]
+                "diagnosis": self.dsm.classes[_output],
+                **{feature["name"] : feature["tostring"](_inputs[i+1]) for i, feature in enumerate(self.dsm.manifest["features"])}
             }
-
             self.samples.append(sample)
 
             self.UI[i]["label"].set_text("\n".join([
-                    "DX: " + sample["diagnosis"],
-                    "Age: " + sample["age"],
-                    "Sex: " + sample["sex"]
+                    *["%s: %s" % (key, value) for key, value in sample.items() if key != "pixel_array"]
                 ]))
             self.UI[i]["image"].set_data(sample["pixel_array"][self.layer])
             self.figure.canvas.draw()
             self.figure.canvas.flush_events()
 
+def selectDataset():
+    
+    plt.style.use('default')
+    fig = plt.figure(figsize=(4,4))
 
+    datasets=[env.ADNI3_set,env.ADNI1_set,env.ADNI1_preprocessed_set]
+    dataset_options = [ds["name"] for ds in datasets]
+
+    list_area = [0.25,0.25,0.5,0.5]
+    options_menu = selection("select a dataset", list_area, dataset_options)
+
+    fig.canvas.draw()
+    fig.canvas.flush_events()
+
+    proceed_button = Button(
+        plt.axes([0.25,0,0.5,0.1]),
+        label="open dataset"
+    )
+    def proceed(val):
+        if options_menu.selected!=None:
+            plt.close()
+    proceed_button.on_clicked(proceed)
+
+    plt.show()
+
+    return datasets[options_menu.selected]
 
 def selectArchitecture():
     
     plt.style.use('default')
     plt.figure(figsize=(4,4))
 
-    radio = RadioButtons(
-        plt.axes([0,0,1,1]), 
-        ('VGG-16', 'UNet', 'ResNet')
+    architecture_options = ['VGG-16', 'UNet', 'ResNet']
+
+    options_menu = selection("select an architecture",[0.25,0.25,0.5,0.5],architecture_options)
+
+    proceed_button = Button(
+        plt.axes([0.25,0,0.5,0.1]),
+        label="build model"
     )
-    def setArchitecture(label):
-        #global architecture
-        env.architecture = label
-    radio.on_clicked(setArchitecture)
+    def proceed(val):
+        if options_menu.selected!=None:
+            plt.close()
+    proceed_button.on_clicked(proceed)
 
     plt.show()
 
-    return env.architecture
+    return architecture_options[options_menu.selected]
 
 import tensorflow as tf
 
 class PerformanceProfiler(tf.keras.callbacks.Callback):
 
-    def __init__(self):
-        self.profiler = MetricsFigure()
+    def __init__(self,stats):
+        self.profiler = MetricsFigure(stats)
     def on_train_batch_end(self, batch, logs=None):
 
         self.profiler.accuracy.append(logs["sparse_categorical_accuracy"])
-        #profiler.plotAccuracy(accuracy)
-
         self.profiler.loss.append(logs["loss"])
-        #profiler.plotLoss(loss)
 
         self.profiler.updateCanvas()
 
 class MetricsFigure():
-    figure = None
-    accuracyPlot = None
-    lossPlot = None
+    #figure = None
+    #accuracyPlot = None
+    #lossPlot = None
 
-    loss = []
-    accuracy = []
+    #loss = []
+    #accuracy = []
 
-    def __init__(self):
+    def __init__(self,stats):
         self.loss = []
         self.accuracy = []
+
+        plt.style.use('dark_background')
 
         plt.ion()
         self.figure = plt.figure(figsize=(5,8))
 
-        stats = [
-            "epochs: %s" % env.epochs,
-            "architecture: %s" % env.architecture,
-            "batch size: %s" % env.batchSize,
-            "dataset: %s" % env.dataset_props["name"]
-        ]
-
-        self.figure.text(0,0,"\n".join(stats))
+        self.figure.text(0,1,"\n".join(stats),va="top")
         
         self.accuracyPlot = self.figure.add_subplot(211)
         plt.title("Accuracy")
@@ -203,6 +275,9 @@ class MetricsFigure():
         self.lossPlot = self.figure.add_subplot(212)
         plt.title("Loss")
         plt.grid()
+
+        
+        plt.get_current_fig_manager().window.state('zoomed')
     
     def updateCanvas(self):
         self.accuracyPlot.plot(range(len(self.accuracy)),self.accuracy, color='red')

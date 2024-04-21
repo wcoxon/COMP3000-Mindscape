@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 #from preprocessing import _parse_function, generator_dataset
-
+import preprocessing
 
 ADNIMerge_properties = {
     "path":"adni documentation/ADNIMERGE_13Apr2024.csv",
@@ -57,19 +57,28 @@ vitals_properties = {
         "Weight Unit":{
             "name":"Weight Unit",
             "column":"VSWTUNIT"
+        },
+        "Height":{
+            "name":"Height",
+            "column":"VSHEIGHT"
+        },
+        "Height Unit":{
+            "name":"Height Unit",
+            "column":"VSHTUNIT"
+        },
+        "Systolic BP":{
+            "name":"Systolic BP",
+            "column":"VSBPSYS"
+        },
+        "Diastolic BP":{
+            "name":"Diastolic BP",
+            "column":"VSBPDIA"
+        },
+        "Pulse":{
+            "name":"Pulse",
+            "column":"VSPULSE"
         }
     }
-    #"features":[
-    #    "PTID",
-    #    "VISCODE", #also viscode2 but idk the difference
-    #    "VSWEIGHT",
-    #    "VSWTUNIT", #gotta multiply this to weight
-    #    "VSHEIGHT",
-    #    "VSHTUNIT", # this one is weird af, do u divide here?
-    #    "VSBPSYS", # blood pressure, systolic
-    #    "VSBPDIA", #blood pressure, diastolic
-    #    "VSPULSE", #bpm
-    #]
 }
 
 demographic_properties = {
@@ -82,42 +91,233 @@ demographic_properties = {
         "Sex":{
             "name":"Sex",
             "column":"PTGENDER",
-            "map":{
-                "1":[1,0],
-                "2":[0,1]
-            }
+            "map":lambda x:{"1":[1,0],"2":[0,1]}[x]
+            #1=Male; 2=Female
+        },
+        "Handedness":{
+            "name":"Handedness",
+            "column":"PTHAND"
+            #1=Right;2=Left	
+        },
+        "Marital Status":{
+            "name":"Marital Status",
+            "column":"PTMARRY"
+            #1=Married; 2=Widowed; 3=Divorced; 4=Never married; 5=Unknown
+        },
+        "Work History":{
+            "name":"Work History",
+            "column":"PTWORKHS"
+            #1=Yes; 0=No
+        },
+        "Education":{
+            "name":"Education",
+            "column":"PTEDUCAT"
+            #0..20
+        },
+        "Ethnic Category":{
+            "name":"Ethnic Category",
+            "column":"PTETHCAT"
+            #1=Hispanic or Latino; 2=Not Hispanic or Latino; 3=Unknown
         },
         "Race":{
             "name":"Race",
             "column":"PTRACCAT",
-            "map":{
-                "-4":[0,0,0,0,0,0,0], #0,
-                "1":[1,0,0,0,0,0,0],  #1,
-                "2":[0,1,0,0,0,0,0],  #2,
-                "3":[0,0,1,0,0,0,0], #3,
-                "4":[0,0,0,1,0,0,0], #4,
-                "5":[0,0,0,0,1,0,0], #5,
-                "6":[0,0,0,0,0,1,0], #6,
-                "7":[0,0,0,0,0,0,1], #7,
-                "4|5":[0,0,0,1,1,0,0], #5,
-                "1|5":[1,0,0,0,1,0,0], #5,
-                "3|4|5":[0,0,1,1,1,0,0]#5
-            }
+            "map": lambda x : {
+                "1":[1,0,0,0,0,0], 
+                "2":[0,1,0,0,0,0], 
+                "3":[0,0,1,0,0,0], 
+                "4":[0,0,0,1,0,0], 
+                "5":[0,0,0,0,1,0], 
+                "6":[0,0,0,0,0,1], 
+                "4|5":[0,0,0,1,1,0],
+                "1|5":[1,0,0,0,1,0],
+                "3|4|5":[0,0,1,1,1,0],
+                "-4":[0,0,0,0,0,0],
+                "7":[0,0,0,0,0,0], 
+            }[x]
+            #1=American Indian or Alaskan Native; 2=Asian; 3=Native Hawaiian or Other Pacific Islander; 4=Black or African American; 5=White; 6=More than one race; 7=Unknown
         },
+
     }
     #"features":[
-    #    "PTID",
-    #    "PTGENDER",
-    #    "PTDOB", # MMM-YY, e.g. Apr-51
-    #    "PTHAND", # [right, left]=[1,2]
-    #    "PTMARRY",
-    #    "PTEDUCAT",
-    #    "PTETHCAT", #ethnicity category
-    #    "PTRACCAT", #race category # 4, 5, 4|5, -4
-    #    "PTWORKHS",
     #    "PTNOTRT", # not retired
     #    "PTRTYR", # retirement year YYYY
     #]
+}
+
+
+ADNI1_links = [
+        {
+            "table":{
+                "path": "data/ADNI1_Complete 1Yr 1.5T/ADNI1_Complete_1Yr_1.5T_4_14_2024.csv",
+                "features":{
+                    "Image ID": {
+                        "name":"Image ID",
+                        "column":"Image Data ID"
+                    },
+                    "Patient ID":{
+                        "name":"Patient ID",
+                        "column":"Subject"
+                    },
+                    "Roster ID":{
+                        "name":"Roster ID",
+                        "column":"Subject",
+                        "map": lambda x : str(int(x.split("_")[-1]))
+                    },
+                    "Visit Code":{
+                        "name":"Visit Code",
+                        "column":"Visit"
+                    },
+                    "Age":{
+                        "name":"Age",
+                        "column":"Age"
+                    },
+                    "Sex":{
+                        "name":"Sex",
+                        "column":"Sex",
+                        "map": lambda x : {'M':[1,0], 'Male':[1,0], 'F':[0,1], 'Female':[0,1]}[x]
+                    },
+                    "Group":{
+                        "name":"Group",
+                        "column":"Group",
+                        "map": lambda x : {"CN":0,"MCI":1, "AD":2, "Dementia":2}[x]
+                    }
+                }
+            },
+            "keys":["Image ID"]
+        },
+        {
+            "table":{
+                "path":"adni documentation/UWNPSYCHSUM_19Apr2024.csv",
+                "features":{
+                    "Roster ID":{
+                        "name":"Roster ID",
+                        "column":"RID"
+                    },
+                    "Visit Code":{
+                        "name":"Visit Code",
+                        "column":"VISCODE",
+                        "map":lambda x : ("sc" if x=="bl" else x)
+
+                    },
+                    "Visit Code 2":{
+                        "name":"Visit Code 2",
+                        "column":"VISCODE2",
+                        "map":lambda x : ("sc" if x=="bl" else x)
+                    },
+                    "Memory Score":{
+                        "name":"Memory Score",
+                        "column":"ADNI_MEM"
+                    },
+                    "Executive Function":{
+                        "name":"Executive Function",
+                        "column":"ADNI_EF"
+                    },
+                    "Executive Function 2":{
+                        "name":"Executive Function 2",
+                        "column":"ADNI_EF2"
+                    },
+                    "Language Cognition":{
+                        "name":"Language Cognition",
+                        "column":"ADNI_LAN"
+                    },
+                    "Visuo-spatial Score":{
+                        "name":"Visuo-spatial Score",
+                        "column":"ADNI_VS"
+                    }
+                }
+            },
+            "keys":["Roster ID", "Visit Code"]
+        },
+        {
+            "table":vitals_properties,
+            "keys":["Patient ID", "Visit Code"]
+        },
+        {
+            "table":demographic_properties,
+            "keys":["Patient ID"]
+        }
+    ]
+
+
+memory_score = {
+    "name":"Memory Score",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float32),
+    "input_shape":(1,)
+}
+executive_function = {
+    "name": "Executive Function",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float32),
+    "input_shape":(1,)
+}
+language_cognition = {
+    "name":"Language Cognition",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float32),
+    "input_shape":(1,)
+}
+visuo_spatial = {
+    "name": "Visuo-spatial Score",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float32),
+    "input_shape":(1,)
+}
+executive_function_2 = {
+    "name": "Executive Function 2",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float32),
+    "input_shape":(1,)
+}
+
+age = {
+    "name":"Age",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float16),
+    "input_shape":(1,)
+}
+sex = {
+    "name":"Sex",
+    "tostring" : lambda x: ["Female","Male"][x[0]],
+    "signature":tf.TensorSpec(shape=(2,), dtype=tf.uint8),
+    "input_shape":(2,)
+}
+race = {
+    "name":"Race",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(6,), dtype=tf.uint8),
+    "input_shape":(6,)
+}
+weight = {
+    "name":"Weight",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float16),
+    "input_shape":(1,)
+},
+weight_unit = {
+    "name":"Weight Unit",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float16),
+    "input_shape":(1,)
+}
+systolic_BP = {
+    "name":"Systolic BP",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float16),
+    "input_shape":(1,)
+}
+diastolic_BP = {
+    "name":"Diastolic BP",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.float16),
+    "input_shape":(1,)
+}
+group = {
+    "name":"Group",
+    "tostring" : lambda x: ["CN","MCI","AD"][x],
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
 }
 
 
@@ -148,22 +348,16 @@ ADNI3_set = {
                     "Sex":{
                         "name":"Sex",
                         "column":"Sex",
-                        "map":{
-                            'M':[1,0], 'Male':[1,0], # male
-                            'F':[0,1], 'Female':[0,1] # female
-                        }
+                        "map":lambda x : {'M':[1,0], 'Male':[1,0],'F':[0,1], 'Female':[0,1]}[x]
                     },
                     "Group":{
                         "name":"Group",
                         "column":"Group",
-                        "map":{
-                            'CN':0, # cognitively normal
-                            'SMC':1, # subjective memory complaints
-                            'EMCI':2, # early mild cognitive impairment
-                            'MCI':3, # mild cognitive impairment
-                            'LMCI':4, # late mild cognitive impairment
-                            'AD':5, 'Dementia':5 # alzheimers dementia
-                        }
+                        "map":lambda x : {'CN':0, 'SMC':1, 'EMCI':2, 'MCI':3, 'LMCI':4, 'AD':5, 'Dementia':5}[x]
+                    },
+                    "Series Description":{
+                        "name":"Series Description",
+                        "column":"Description"
                     }
                 }
             },
@@ -179,140 +373,77 @@ ADNI3_set = {
         }
     ],
 
-    "images_directory" : "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI",
+    "images_path" : "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI/*/*/*/*",
     "image_format" : "dcm",
-    "image_shape" : (54, 78, 78, 1), #(depth, width, height, channels)
+    "getImageID": lambda path : path.split("\\")[-1],
+    "image_input_shape" : (54, 78, 78, 1), #(depth, width, height, channels)
+    "image_transformations":[preprocessing.normalize_process],
 
-    #"csv_path" : "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI3_T1_AXIAL_54_DEPTH_4_07_2024.csv",
+    "features":[
+        age,
+        sex,
+        race
+    ],
+
     "classes" : ["CN","SMC","EMCI","MCI","LMCI","AD"],
-    #"label_map" : {
-    #    'CN':0, # cognitively normal
-    #    'SMC':1, # subjective memory complaints
-    #    'EMCI':2, # early mild cognitive impairment
-    #    'MCI':3, # mild cognitive impairment
-    #    'LMCI':4, # late mild cognitive impairment
-    #    'AD':5, 'Dementia':5 # alzheimers dementia
-    #}
+    
 }
 
 ADNI1_set = {
     "name":"ADNI1_Complete 1Yr 1.5T",
 
-    "link":[
-        {
-            "table":{
-                "path": "data/ADNI1_Complete 1Yr 1.5T/ADNI1_Complete_1Yr_1.5T_4_14_2024.csv",
-                "features":{
-                    "Image ID": {
-                        "name":"Image ID",
-                        "column":"Image Data ID"
-                    },
-                    "Patient ID":{
-                        "name":"Patient ID",
-                        "column":"Subject"
-                    },
-                    "Visit Code":{
-                        "name":"Visit Code",
-                        "column":"Visit"
-                    },
-                    "Age":{
-                        "name":"Age",
-                        "column":"Age"
-                    },
-                    "Sex":{
-                        "name":"Sex",
-                        "column":"Sex",
-                        "map":{
-                            'M':[1,0], 'Male':[1,0], # male
-                            'F':[0,1], 'Female':[0,1] # female
-                        }
-                    },
-                    "Group":{
-                        "name":"Group",
-                        "column":"Group",
-                        "map":{
-                            "CN":0,
-                            "MCI":1,
-                            "AD":2, "Dementia":2
-                        }
-                    }
-                }
-            },
-            "keys":["Image ID"]
-        },
-        {
-            "table":vitals_properties,
-            "keys":["Patient ID", "Visit Code"]
-        },
-        {
-            "table":demographic_properties,
-            "keys":["Patient ID"]
-        }
-    ],
-
-    "images_directory" : "data/ADNI1_Complete 1Yr 1.5T/ADNI",
-    "image_format" : "nii",
-    "image_shape" : (128, 128, 90, 1), # not source, what the images are resized to.     #(256, 256, 180, 1), # (width, height, depth, channels)
-
-    "features":[
-        "Age",
-        "Sex",
-        "Race",
-
-        "Weight",
-        "Weight Unit"
-    ],
-    "feature_specs":[
-        tf.TensorSpec(shape=(), dtype=tf.float16), # age
-        tf.TensorSpec(shape=(2,), dtype=tf.uint8), # sex
-        tf.TensorSpec(shape=(7,), dtype=tf.uint8), # race
-
-        tf.TensorSpec(shape=(), dtype=tf.float16), # weight
-        tf.TensorSpec(shape=(), dtype=tf.float16), # weight unit
-    ],
-    "feature_inputs":[
-        (1,),
-        (2,),
-        (7,),
-        
-        (1,),
-        (1,)
-    ],
-
-    "classes" : ["CN","MCI","AD"],
+    "link":ADNI1_links,
     
+    "features":[
+        memory_score,
+        age
+    ],
 
-    #"dataset" : lambda : generator_dataset()
+    "images_path" : "data/ADNI1_Complete 1Yr 1.5T/ADNI/*/*/*/*/*.nii",
+    "getImageID": lambda path : path.split("\\")[-2],
+    "image_format" : "nii",
+    "image_input_shape" : (128, 128, 90, 1),
+    "image_transformations":[preprocessing.resize_process((128, 128, 90, 1)),preprocessing.normalize_process],
+
+    "classes" : ["CN","MCI","AD"]
 }
 
-preprocessed_set = {
+ADNI1_preprocessed_set = {
     "name":"ADNI1_Complete 1Yr 1.5T (preprocessed)",
-    "file_location" : 'data/my_dataset.tfrecord',
-    "image_shape" : (128, 128, 90, 1),
+
+    "link":ADNI1_links,
+    "features":[
+        memory_score,
+        executive_function,
+        executive_function_2,
+        visuo_spatial,
+        language_cognition
+    ],
+
+    "images_path" : "data/preprocessed/256_256_180/*.nii",
+    "getImageID": lambda path : path.split("\\")[-1].replace(".nii",""),
+    "image_format" : "nii",
+    "image_input_shape" : (256, 256, 180, 1),
+    "image_transformations":[],
 
     "classes" : ["CN","MCI","AD"],
-
-    #"dataset": lambda : tf.data.TFRecordDataset('data/ADNI1_dataset_2000.tfrecord').map(_parse_function)
 }
 
+#dataset_props = ADNI1_preprocessed_set
 
-dataset_props = ADNI1_set
+#image_shape = dataset_props["image_input_shape"]
+#classes = dataset_props["classes"]
+#num_classes = len(classes)
+#
+#images_directory = dataset_props["images_path"]
 
-image_shape = dataset_props.get("image_shape")
-classes = dataset_props.get("classes")
-num_classes = len(classes)
+#ADNI_merge = "adni documentation/ADNIMERGE_13Apr2024.csv"
+#vitals = "adni documentation/VITALS_16Apr2024.csv"
+#demographic = "adni documentation/PTDEMOG_16Apr2024.csv"
 
-images_directory = dataset_props.get("images_directory")
-
-#csv_path = dataset_props.get("csv_path")
-
-ADNI_merge = "adni documentation/ADNIMERGE_13Apr2024.csv"
-vitals = "adni documentation/VITALS_16Apr2024.csv"
-demographic = "adni documentation/PTDEMOG_16Apr2024.csv"
-
-label_map = dataset_props.get("label_map")
-
-batchSize = 2
+batchSize = 1
 epochs = 5
 debug = True
-architecture = 'ResNet'
+#architecture = 'ResNet'
+
+

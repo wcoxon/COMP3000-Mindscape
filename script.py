@@ -1,32 +1,24 @@
 
 import tensorflow as tf
 from tensorflow.keras import losses, metrics
-
 import preprocessing
-from preprocessing import class_distribution, generator_dataset, write_tfrecord, _parse_function
-from interface import DataBrowser, selectArchitecture, PerformanceProfiler
+from interface import DataBrowser,selectDataset, selectArchitecture, PerformanceProfiler
 from architectures import buildModel
 import env
 
-dataset = generator_dataset()
+dataset_manifest = selectDataset()
 
-#write_tfrecord(dataset,'data/ADNI1_dataset_2000.tfrecord')
-#input("finished")
+dm = preprocessing.dataset_manager(dataset_manifest)
 
+DataBrowser(dm,4)
+architecture = selectArchitecture()
 
-#dataset = tf.data.TFRecordDataset('data/ADNI1_dataset_2000.tfrecord').map(_parse_function)
+model = buildModel(dm,architecture)
 
+epoch_samples = 1024
 
-class_dist = class_distribution(dataset)
-class_weights = {i:1/d for i, d in enumerate(class_dist)}
-
-DataBrowser(dataset,4,class_dist)
-#selectArchitecture()
-
-model = buildModel()
-
-boundaries = [500/env.batchSize, 1000/env.batchSize, 2000/env.batchSize]
-values = [1e-2, 5e-3, 1e-3, 1e-4]
+boundaries = [0.25*epoch_samples/env.batchSize, 0.5*epoch_samples/env.batchSize, 0.75*epoch_samples/env.batchSize]
+values = [1e-4, 5e-5, 1e-5, 1e-6]
 lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
 
 model.compile(
@@ -36,19 +28,24 @@ model.compile(
 )
 model.summary()
 
+training_data = dm.dataset.take(epoch_samples)#.cache("training_cache2")
 
-env.debug = False
-
-training_data = dataset.take(128).cache("training_cache")
+stats = [
+    "dataset: %s" % dm.manifest["name"],
+    "architecture: %s" % architecture,
+    "epochs: %s" % env.epochs,
+    "batch size: %s" % env.batchSize
+]
 
 model.fit(
     x=training_data.batch(env.batchSize),
+    steps_per_epoch=epoch_samples,
     epochs=env.epochs,
     batch_size=env.batchSize,
-    callbacks=[PerformanceProfiler()],
+    callbacks=[PerformanceProfiler(stats)],
     shuffle=True,
-    class_weight=class_weights
+    class_weight=dm.class_weight
 )
 
 import matplotlib.pyplot as plt
-plt.show(block=True)
+plt.show(block=True) # to prevent it from closing when training is done
