@@ -376,7 +376,7 @@ ADNI3_set = {
     "images_path" : "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI/*/*/*/*",
     "image_format" : "dcm",
     "getImageID": lambda path : path.split("\\")[-1],
-    "image_input_shape" : (54, 78, 78, 1), #(depth, width, height, channels)
+    "image_input_shape" : (54, 78, 78, 1),
     "image_transformations":[preprocessing.normalize_process],
 
     "features":[
@@ -447,3 +447,4 @@ debug = True
 #architecture = 'ResNet'
 
 
+state = 0

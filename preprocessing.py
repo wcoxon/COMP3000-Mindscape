@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from scipy.ndimage import zoom
 
-debug = True
+debug = False
 
 class dataset_manager():
 
@@ -78,32 +78,32 @@ class dataset_manager():
             if debug : print(ref["table"]["path"],":",metadata)
 
         return metadata
+    
+    def generate_sample(self,path):
+        
+        path_string = path.numpy().decode("ascii") # image directory path
+        imageID = self.manifest["getImageID"](path_string) # extract image ID from file path
+        
+        if(self.manifest["image_format"]=="nii"): volume = loadNii(path_string,imageID,self.manifest["image_transformations"])
+        elif(self.manifest["image_format"]=="dcm"): volume = loadDicom(path_string,self.manifest["image_input_shape"])
+        metadata = self.getMeta({"Image ID" : imageID}) # query CSV data
+
+        return (
+            (
+                volume, 
+                *[metadata[feature["name"]] for feature in self.manifest["features"]]
+            ),
+            metadata["Group"]
+        )
 
     def generateDataset(self):
-        for image_path in tf.data.Dataset.list_files(self.manifest["images_path"],shuffle=True): #for each image
-            path_string = image_path.numpy().decode("ascii") # image directory path
-            imageID = self.manifest["getImageID"](path_string) # extract image ID from file path
-            
-            if(self.manifest["image_format"]=="nii"): volume = loadNii(path_string,imageID,self.manifest["image_transformations"])
-            elif(self.manifest["image_format"]=="dcm"): volume = loadDicom(path_string,self.manifest["image_input_shape"])
 
-            metadata = self.getMeta({"Image ID" : imageID}) # query CSV data
-
-            if debug:
-                print(volume.shape)
-                print(path_string)
-                print(metadata,"\n")
-
-            yield (
-                (
-                    volume, 
-                    *[metadata[feature["name"]] for feature in self.manifest["features"]]
-                ),
-                metadata["Group"]
-            )
+        for image_path in tf.data.Dataset.list_files(self.manifest["images_path"],shuffle=False): #for each image
+            yield self.generate_sample(image_path)
 
     def generator_dataset(self):
-    
+
+
         return tf.data.Dataset.from_generator(
             self.generateDataset,
             output_signature=(

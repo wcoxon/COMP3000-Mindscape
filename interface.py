@@ -1,11 +1,16 @@
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from matplotlib.widgets import Slider, Button, RadioButtons
-import time
+from matplotlib.widgets import Slider, Button
+
+from tensorflow.keras import losses, metrics
+
+plt.rcParams['toolbar']='None'
 
 import env
-
+import preprocessing
+import architectures
+from preprocessing import dataset_manager
 
 
 class toggle():
@@ -54,31 +59,146 @@ class selection():
             self.toggles[index].set_state(True)
         return select
 
-plt.rcParams['toolbar']='None'
-class DataBrowser():
+class App():
 
-    def __init__(self,dsm,sampleCount):
-        plt.style.use('dark_background')
-        
-        self.dsm = dsm
-        self.dataset = dsm.dataset
-        self.sampleCount = sampleCount
+    def __init__(self):
+        self.dataset_manager = None
+        self.architecture = None
 
-        self.figure, self.ax = plt.subplots()
-        self.gridspec = gridspec.GridSpec(nrows=2, ncols=sampleCount, height_ratios=[2, 1])
+        self.state = 0
+
+        while self.state!=-1:
+
+            if self.state==0:
+                self.state = -1
+                self.selectDataset()
+
+            elif self.state==1:
+                self.state = -1
+                DataBrowser(self)
+
+            elif self.state==2:
+                self.state = -1
+                self.selectArchitecture()
+
+            elif self.state==3:
+                self.state = -1
+                self.build_model()
+
+
+
+    def selectDataset(self):
+
+        plt.style.use('default')
+        fig = plt.figure(figsize=(4,4))
+
+        datasets=[env.ADNI3_set,env.ADNI1_set,env.ADNI1_preprocessed_set]
+        dataset_options = [ds["name"] for ds in datasets]
+
+        list_area = [0.25,0.25,0.5,0.5]
+        options_menu = selection("select a dataset", list_area, dataset_options)
+
+
+        proceed_button = Button(plt.axes([0.25,0,0.5,0.1]),label="open dataset")
+
+        def proceed(event):
+            if options_menu.selected==None: return
+            self.dataset_manager = dataset_manager(datasets[options_menu.selected])
+            self.state=1
+            plt.close()
+
+        proceed_button.on_clicked(proceed)
+
+        plt.show()
+    
+    def selectArchitecture(self):
+    
+        plt.style.use('default')
+        plt.figure(figsize=(4,4))
+
+        architecture_options = ['VGG-16', 'UNet', 'ResNet']
+
+        options_menu = selection("select an architecture",[0.25,0.25,0.5,0.5],architecture_options)
+
+        proceed_button = Button(
+            plt.axes([0.25,0,0.5,0.1]),
+            label="build model"
+        )
+        def proceed(val):
+            if options_menu.selected!=None:
+                plt.close()
+                self.architecture = architecture_options[options_menu.selected]
+                self.state = 3
+        proceed_button.on_clicked(proceed)
+
+        plt.show()
+
+
+    def build_model(self):
+        model = architectures.buildModel(self.dataset_manager, self.architecture)
+
+        epoch_samples = 1024
+
+        boundaries = [0.25*epoch_samples/env.batchSize, 0.5*epoch_samples/env.batchSize, 0.75*epoch_samples/env.batchSize]
+        values = [1e-4, 5e-5, 1e-5, 1e-6]
+        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(boundaries, values)
+
+        model.compile(
+            optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule),
+            loss = losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics = [metrics.SparseCategoricalAccuracy()]
+        )
+        model.summary()
+
+        training_data = self.dataset_manager.dataset.take(epoch_samples)#.cache("training_cache2")
 
         stats = [
-            "dataset name: %s" % dsm.manifest["name"],
-            "volume shape: %s" % str(dsm.image_shape),
-            "features: %s" % [feature["name"] for feature in dsm.manifest["features"]]
+            "dataset: %s" % self.dataset_manager.manifest["name"],
+            "architecture: %s" % self.architecture,
+            "epochs: %s" % env.epochs,
+            "batch size: %s" % env.batchSize
+        ]
+
+        model.fit(
+            x=training_data.batch(env.batchSize),
+            steps_per_epoch=epoch_samples,
+            epochs=env.epochs,
+            batch_size=env.batchSize,
+            callbacks=[PerformanceProfiler(stats)],
+            shuffle=True,
+            class_weight=self.dataset_manager.class_weight
+        )
+
+        import matplotlib.pyplot as plt
+        plt.show(block=True) # to prevent it from closing when training is done
+
+
+
+class DataBrowser():
+
+    def __init__(self,app):
+        self.app = app
+        self.dsm = app.dataset_manager
+        self.dataset = self.dsm.dataset
+        self.sampleCount = 3
+        self.page = 0
+
+        plt.style.use('dark_background')
+        self.figure, self.ax = plt.subplots()
+        self.gridspec = gridspec.GridSpec(nrows=2, ncols=self.sampleCount, height_ratios=[2, 1])
+
+        stats = [
+            "dataset name: %s" % self.dsm.manifest["name"],
+            "volume shape: %s" % str(self.dsm.image_shape),
+            "features: %s" % [feature["name"] for feature in self.dsm.manifest["features"]]
         ]
 
         
         self.figure.text(1,1, "\n".join(stats), fontsize=10, ha='right', va='top')
 
 
-        labels = dsm.classes
-        sizes = dsm.class_distribution
+        labels = self.dsm.classes
+        sizes = self.dsm.class_distribution
         plt.subplot(self.gridspec[0,0])
         plt.pie(sizes, labels=labels)
 
@@ -88,15 +208,22 @@ class DataBrowser():
         self.layer = imgdepth//2
 
         self.display_samples()
-        layer_slider = self.display_slider()
-        reroll_button = self.display_samples_button()
+        self.layer_slider = self.display_slider()
+        self.next_button, self.prev_button = self.page_buttons()
 
-        proceed_button = Button(
-            plt.axes([0.8, 0.3, 0.1, 0.1]),
+        self.return_button = Button(
+            plt.axes([0.0, 0.5, 0.05, 0.05]),
+            color="0.1",
+            label="back"
+        )
+        self.return_button.on_clicked(lambda val : self.return_to_datasets())
+
+        self.proceed_button = Button(
+            plt.axes([0.9, 0.5, 0.05, 0.05]),
             color="0.1",
             label="proceed"
         )
-        proceed_button.on_clicked(lambda val : plt.close())
+        self.proceed_button.on_clicked(lambda val : self.proceed_to_model())
 
         
         plt.get_current_fig_manager().window.state('zoomed')
@@ -116,32 +243,37 @@ class DataBrowser():
         layer_slider.on_changed(self.update_layer)
         return layer_slider
     
-    def display_samples_button(self):
-        new_set_button = Button(
-            plt.axes([0.8, 0.5, 0.1, 0.1]),
+    def page_buttons(self):
+        next_button = Button(
+            plt.axes([0.9, 0.3, 0.05, 0.05]),
             color="0.1",
-            label="new samples"
+            label="next row"
         )
-        new_set_button.on_clicked(self.update_samples)
-        return new_set_button
+        prev_button = Button(
+            plt.axes([0.0, 0.3, 0.05, 0.05]),
+            color="0.1",
+            label="prev row"
+        )
 
+        next_button.on_clicked(lambda label : self.update_samples(self.page+1))
+        prev_button.on_clicked(lambda label : self.update_samples(self.page-1))
+
+        return next_button,prev_button
 
     def load_samples(self):
         self.samples = []
+        #generate set of image paths
+        paths_set = tf.data.Dataset.list_files(self.dsm.manifest["images_path"],shuffle=False).skip(self.page*self.sampleCount).take(self.sampleCount)
 
-        dataIterator = self.dataset.take(self.sampleCount).as_numpy_iterator()
-        start_time = time.time()
-        for (_inputs, _output) in dataIterator:
-            loaded_time = time.time()
-            print("load time:", loaded_time-start_time)
+        for path in paths_set:
+            (_inputs, _output) = self.dsm.generate_sample(path)
+
             self.samples.append({
                 "pixel_array":_inputs[0],
                 "diagnosis": self.dsm.classes[_output],
-
                 **{feature["name"] : feature["tostring"](_inputs[i+1]) for i, feature in enumerate(self.dsm.manifest["features"])}
             })
-            start_time=time.time()
-    
+
     def display_samples(self):
         self.UI = []
 
@@ -159,20 +291,16 @@ class DataBrowser():
                 "label":label_UI, 
                 "image":slice_UI
             })
-    
-    def update_layer(self, layer):
-        self.layer = layer
-        for i in range(self.sampleCount):
-                self.UI[i]["image"].set_data(self.samples[i]["pixel_array"][layer])
 
-    def update_samples(self,val=None):
-
+    def update_samples(self,page):
         self.samples = []
-        dataIterator = self.dataset.take(self.sampleCount).as_numpy_iterator()
-
+        self.page = page
+        paths_set = tf.data.Dataset.list_files(self.dsm.manifest["images_path"],shuffle=False).skip(self.page*self.sampleCount).take(self.sampleCount)
         
-        for i, (_inputs, _output) in enumerate(dataIterator):
-            
+        for i, path in enumerate(paths_set):
+
+            (_inputs, _output) = self.dsm.generate_sample(path)
+
             sample = {
                 "pixel_array":_inputs[0],
                 "diagnosis": self.dsm.classes[_output],
@@ -187,54 +315,22 @@ class DataBrowser():
             self.figure.canvas.draw()
             self.figure.canvas.flush_events()
 
-def selectDataset():
+    def update_layer(self, layer):
+        self.layer = layer
+        for i in range(self.sampleCount):
+                self.UI[i]["image"].set_data(self.samples[i]["pixel_array"][layer])
+
+    def proceed_to_model(self):
+        plt.close()
+        self.app.state = 2
+        #selectArchitecture()
     
-    plt.style.use('default')
-    fig = plt.figure(figsize=(4,4))
+    def return_to_datasets(self):
+        plt.close()
+        self.app.state = 0
 
-    datasets=[env.ADNI3_set,env.ADNI1_set,env.ADNI1_preprocessed_set]
-    dataset_options = [ds["name"] for ds in datasets]
 
-    list_area = [0.25,0.25,0.5,0.5]
-    options_menu = selection("select a dataset", list_area, dataset_options)
 
-    fig.canvas.draw()
-    fig.canvas.flush_events()
-
-    proceed_button = Button(
-        plt.axes([0.25,0,0.5,0.1]),
-        label="open dataset"
-    )
-    def proceed(val):
-        if options_menu.selected!=None:
-            plt.close()
-    proceed_button.on_clicked(proceed)
-
-    plt.show()
-
-    return datasets[options_menu.selected]
-
-def selectArchitecture():
-    
-    plt.style.use('default')
-    plt.figure(figsize=(4,4))
-
-    architecture_options = ['VGG-16', 'UNet', 'ResNet']
-
-    options_menu = selection("select an architecture",[0.25,0.25,0.5,0.5],architecture_options)
-
-    proceed_button = Button(
-        plt.axes([0.25,0,0.5,0.1]),
-        label="build model"
-    )
-    def proceed(val):
-        if options_menu.selected!=None:
-            plt.close()
-    proceed_button.on_clicked(proceed)
-
-    plt.show()
-
-    return architecture_options[options_menu.selected]
 
 import tensorflow as tf
 
