@@ -10,7 +10,7 @@ import env
 #the vgg-16 base, without the top
 def VGG_16_3D(inputs):
     t = 16 #t for test lol just a scale of model depth, but hardcoding the proportional sizes if that makes sense like this layer will be the same relative scale from others
-    pool = (2,2,2)
+    pool = 2
     
     return Sequential([
         inputs,
@@ -76,7 +76,6 @@ def decoder_block(input_tensor, concat_tensor, num_filters):
     return decoder
 
 def unet_3d(inputs):
-    #inputs = Input(shape=image_shape)
 
     encoder0_pool, encoder0 = encoder_block(inputs, 32)
     encoder1_pool, encoder1 = encoder_block(encoder0_pool, 64)
@@ -119,7 +118,6 @@ def residual_block(x, filters, kernel_size=3, strides=1, activation='relu'):
     return x
 
 def resnet_3d(inputs):
-    #inputs = Input(image_shape)
 
     x = conv3d_bn(inputs, filters=64, kernel_size=7, strides=2)
     x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)

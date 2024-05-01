@@ -1,126 +1,39 @@
-
 import tensorflow as tf
-#from preprocessing import _parse_function, generator_dataset
 import preprocessing
 
-ADNIMerge_properties = {
-    "path":"adni documentation/ADNIMERGE_13Apr2024.csv",
-    "features":[
-        {
-            "name":"ID",
-            "column":"PTID"
-        },
-        {
-            "name":"Visit Code 2",
-            "column":"VISCODE",
-            #adni merge combines sc and bl visits into just bl because they're both initial visits
 
-        },
-        {
-            "name":"Age",
-            "column":"AGE",
-        },
-        {
-            "name":"Race",
-            "column":"PTRACCAT",
-            "map":{
-                "Black":0,
-                "White":1,
-                "Asian":2,
-                "More than one":3,
-                "Am Indian/Alaskan":4,
-                "Unknown":5
-            }
-        }
-    ]
-}
-
-vitals_properties = {
+vitals_reference = {
     "path":"adni documentation/VITALS_16Apr2024.csv",
     "features":{
-        "Patient ID":{
-            "name":"Patient ID",
-            "column":"PTID"
-        },
-        "Visit Code":{
-            "name":"Visit Code",
-            "column":"VISCODE",
-        },
-        "Visit Code 2":{
-            "name":"Visit Code 2",
-            "column":"VISCODE2",
-        },
-        "Weight":{
-            "name":"Weight",
-            "column":"VSWEIGHT"
-        },
-        "Weight Unit":{
-            "name":"Weight Unit",
-            "column":"VSWTUNIT"
-        },
-        "Height":{
-            "name":"Height",
-            "column":"VSHEIGHT"
-        },
-        "Height Unit":{
-            "name":"Height Unit",
-            "column":"VSHTUNIT"
-        },
-        "Systolic BP":{
-            "name":"Systolic BP",
-            "column":"VSBPSYS"
-        },
-        "Diastolic BP":{
-            "name":"Diastolic BP",
-            "column":"VSBPDIA"
-        },
-        "Pulse":{
-            "name":"Pulse",
-            "column":"VSPULSE"
-        }
-    }
+        "Patient ID":{"column":"PTID"},
+        "Visit Code":{"column":"VISCODE"},
+        "Visit Code 2":{"column":"VISCODE2"},
+        "Weight":{"column":"VSWEIGHT"},
+        "Weight Unit":{"column":"VSWTUNIT"},
+        "Height":{"column":"VSHEIGHT"},
+        "Height Unit":{"column":"VSHTUNIT"},
+        "Systolic BP":{"column":"VSBPSYS"},
+        "Diastolic BP":{"column":"VSBPDIA"},
+        "Pulse":{"column":"VSPULSE"}
+    },
+    "keys":["Patient ID", "Visit Code"]
 }
-
-demographic_properties = {
+demographic_reference = {
     "path": "adni documentation/PTDEMOG_16Apr2024.csv",
     "features":{
-        "Patient ID":{
-            "name":"Patient ID",
-            "column":"PTID"
-        },
+        "Patient ID":{"column":"PTID"},
         "Sex":{
-            "name":"Sex",
             "column":"PTGENDER",
             "map":lambda x:{"1":[1,0],"2":[0,1]}[x]
             #1=Male; 2=Female
         },
-        "Handedness":{
-            "name":"Handedness",
-            "column":"PTHAND"
-            #1=Right;2=Left	
-        },
-        "Marital Status":{
-            "name":"Marital Status",
-            "column":"PTMARRY"
-            #1=Married; 2=Widowed; 3=Divorced; 4=Never married; 5=Unknown
-        },
-        "Work History":{
-            "name":"Work History",
-            "column":"PTWORKHS"
-            #1=Yes; 0=No
-        },
-        "Education":{
-            "name":"Education",
-            "column":"PTEDUCAT"
-            #0..20
-        },
-        "Ethnic Category":{
-            "name":"Ethnic Category",
-            "column":"PTETHCAT"
-            #1=Hispanic or Latino; 2=Not Hispanic or Latino; 3=Unknown
-        },
+        "Handedness" : {"column":"PTHAND", "map":lambda x : int(x)}, # 1=Right; 2=Left	
+        "Marital Status":{"column":"PTMARRY", "map":lambda x : int(x)}, # 1=Married; 2=Widowed; 3=Divorced; 4=Never married; 5=Unknown
+        "Work History" : {"column":"PTWORKHS", "map":lambda x : int(x)}, # 1=Yes; 0=No
+        "Education" : {"column":"PTEDUCAT", "map":lambda x : int(x)}, # 0..20
+        "Ethnic Category" : {"column":"PTETHCAT"}, # 1=Hispanic or Latino; 2=Not Hispanic or Latino; 3=Unknown
+        "Retired" : {"column":"PTNOTRT", "map":lambda x : int(x)}, # 1=yes; 0=no i think
         "Race":{
-            "name":"Race",
             "column":"PTRACCAT",
             "map": lambda x : {
                 "1":[1,0,0,0,0,0], 
@@ -135,109 +48,31 @@ demographic_properties = {
                 "-4":[0,0,0,0,0,0],
                 "7":[0,0,0,0,0,0], 
             }[x]
-            #1=American Indian or Alaskan Native; 2=Asian; 3=Native Hawaiian or Other Pacific Islander; 4=Black or African American; 5=White; 6=More than one race; 7=Unknown
-        },
-
-    }
-    #"features":[
-    #    "PTNOTRT", # not retired
-    #    "PTRTYR", # retirement year YYYY
-    #]
-}
-
-
-ADNI1_links = [
-        {
-            "table":{
-                "path": "data/ADNI1_Complete 1Yr 1.5T/ADNI1_Complete_1Yr_1.5T_4_14_2024.csv",
-                "features":{
-                    "Image ID": {
-                        "name":"Image ID",
-                        "column":"Image Data ID"
-                    },
-                    "Patient ID":{
-                        "name":"Patient ID",
-                        "column":"Subject"
-                    },
-                    "Roster ID":{
-                        "name":"Roster ID",
-                        "column":"Subject",
-                        "map": lambda x : str(int(x.split("_")[-1]))
-                    },
-                    "Visit Code":{
-                        "name":"Visit Code",
-                        "column":"Visit"
-                    },
-                    "Age":{
-                        "name":"Age",
-                        "column":"Age"
-                    },
-                    "Sex":{
-                        "name":"Sex",
-                        "column":"Sex",
-                        "map": lambda x : {'M':[1,0], 'Male':[1,0], 'F':[0,1], 'Female':[0,1]}[x]
-                    },
-                    "Group":{
-                        "name":"Group",
-                        "column":"Group",
-                        "map": lambda x : {"CN":0,"MCI":1, "AD":2, "Dementia":2}[x]
-                    }
-                }
-            },
-            "keys":["Image ID"]
-        },
-        {
-            "table":{
-                "path":"adni documentation/UWNPSYCHSUM_19Apr2024.csv",
-                "features":{
-                    "Roster ID":{
-                        "name":"Roster ID",
-                        "column":"RID"
-                    },
-                    "Visit Code":{
-                        "name":"Visit Code",
-                        "column":"VISCODE",
-                        "map":lambda x : ("sc" if x=="bl" else x)
-
-                    },
-                    "Visit Code 2":{
-                        "name":"Visit Code 2",
-                        "column":"VISCODE2",
-                        "map":lambda x : ("sc" if x=="bl" else x)
-                    },
-                    "Memory Score":{
-                        "name":"Memory Score",
-                        "column":"ADNI_MEM"
-                    },
-                    "Executive Function":{
-                        "name":"Executive Function",
-                        "column":"ADNI_EF"
-                    },
-                    "Executive Function 2":{
-                        "name":"Executive Function 2",
-                        "column":"ADNI_EF2"
-                    },
-                    "Language Cognition":{
-                        "name":"Language Cognition",
-                        "column":"ADNI_LAN"
-                    },
-                    "Visuo-spatial Score":{
-                        "name":"Visuo-spatial Score",
-                        "column":"ADNI_VS"
-                    }
-                }
-            },
-            "keys":["Roster ID", "Visit Code"]
-        },
-        {
-            "table":vitals_properties,
-            "keys":["Patient ID", "Visit Code"]
-        },
-        {
-            "table":demographic_properties,
-            "keys":["Patient ID"]
+            # 1=American Indian or Alaskan Native; 2=Asian; 3=Native Hawaiian or Other Pacific Islander; 4=Black or African American; 5=White; 6=More than one race; 7=Unknown
         }
-    ]
+    },
+    "keys":["Patient ID"]
+}
+psych_reference = {
+    "path":"adni documentation/UWNPSYCHSUM_19Apr2024.csv",
+    "features":{
+        "Roster ID" : {"column":"RID"},
+        "Visit Code" : {
+            "column":"VISCODE",
+            "map":lambda x : ("sc" if x=="bl" else x)
+        },
+        "Visit Code 2" : {
+            "column":"VISCODE2",
+            "map":lambda x : ("sc" if x=="bl" else x)
+        },
+        "Memory Score" : {"column":"ADNI_MEM"},
+        "Executive Function" : {"column":"ADNI_EF"},
+        "Executive Function 2" : {"column":"ADNI_EF2"},
+        "Language Cognition" : {"column":"ADNI_LAN"},
+        "Visuo-spatial Score" : {"column":"ADNI_VS"}
+    },
+    "keys":["Roster ID", "Visit Code"]
+}
 
 
 memory_score = {
@@ -283,6 +118,42 @@ sex = {
     "signature":tf.TensorSpec(shape=(2,), dtype=tf.uint8),
     "input_shape":(2,)
 }
+handedness = {
+    "name":"Handedness",
+    "tostring" : lambda x: ["Right","Left"][x-1],
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
+marital_status = {
+    "name":"Marital Status",
+    "tostring" : lambda x: ["Married","Widowed","Divorced","Never Married","Unknown"][x-1],
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
+work_history = {
+    "name":"Work History",
+    "tostring" : lambda x: ["No","Yes"][x],
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
+education = {
+    "name":"Education",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
+ethnicity = {
+    "name":"Ethnic Category",
+    "tostring" : lambda x: str(x),
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
+retired = {
+    "name":"Retired",
+    "tostring" : lambda x: ["No","Yes"][x],
+    "signature":tf.TensorSpec(shape=(), dtype=tf.uint8),
+    "input_shape":(1,)
+}
 race = {
     "name":"Race",
     "tostring" : lambda x: str(x),
@@ -320,90 +191,121 @@ group = {
     "input_shape":(1,)
 }
 
+features = {
+    "Memory Score":memory_score,
+    "Executive Function":executive_function,
+    "Language Cognition":language_cognition,
+    "Visuo-spatial Score":visuo_spatial,
+    "Executive Function 2":executive_function_2,
+    "Age":age,
+    "Sex":sex,
+    "Handedness":handedness,
+    "Marital Status":marital_status,
+    "Work History":work_history,
+    "Education":education,
+    "Ethnicity":ethnicity,
+    "Retired":retired,
+    "Race":race,
+    "Weight":weight,
+    "Weight Unit":weight_unit,
+    "Systolic BP":systolic_BP,
+    "Diastolic BP":diastolic_BP,
+    "Group":group
+
+}
 
 ADNI3_set = {
     "name": "ADNI3 T1 AXIAL 54 DEPTH",
 
-    "link":[
+    "refs":[
         {
-            "table":{
-                "path": "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI3_T1_AXIAL_54_DEPTH_4_07_2024.csv",
-                "features":{
-                    "Image ID": {
-                        "name":"Image ID",
-                        "column":"Image Data ID"
-                    },
-                    "Patient ID":{
-                        "name":"Patient ID",
-                        "column":"Subject"
-                    },
-                    "Visit Code":{
-                        "name":"Visit Code",
-                        "column":"Visit"
-                    },
-                    "Age":{
-                        "name":"Age",
-                        "column":"Age"
-                    },
-                    "Sex":{
-                        "name":"Sex",
-                        "column":"Sex",
-                        "map":lambda x : {'M':[1,0], 'Male':[1,0],'F':[0,1], 'Female':[0,1]}[x]
-                    },
-                    "Group":{
-                        "name":"Group",
-                        "column":"Group",
-                        "map":lambda x : {'CN':0, 'SMC':1, 'EMCI':2, 'MCI':3, 'LMCI':4, 'AD':5, 'Dementia':5}[x]
-                    },
-                    "Series Description":{
-                        "name":"Series Description",
-                        "column":"Description"
-                    }
-                }
+            "path": "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI3_T1_AXIAL_54_DEPTH_4_07_2024.csv",
+            "features":{
+                "Image ID": {"column":"Image Data ID"},
+                "Patient ID":{"column":"Subject"},
+                "Roster ID":{
+                    "column":"Subject",
+                    "map": lambda x : str(int(x.split("_")[-1]))
+                },
+                "Visit Code":{"column":"Visit"},
+                "Age":{"column":"Age"},
+                "Sex":{
+                    "column":"Sex",
+                    "map":lambda x : {'M':[1,0], 'Male':[1,0],'F':[0,1], 'Female':[0,1]}[x]
+                },
+                "Group":{
+                    "column":"Group",
+                    "map":lambda x : {'CN':0, 'SMC':1, 'EMCI':2, 'MCI':3, 'LMCI':4, 'AD':5, 'Dementia':5}[x]
+                },
+                "Series Description":{"column":"Description"}
             },
             "keys":["Image ID"]
         },
-        {
-            "table":vitals_properties,
-            "keys":["Patient ID", "Visit Code"]
-        },
-        {
-            "table":demographic_properties,
-            "keys":["Patient ID"]
-        }
+        vitals_reference,
+        demographic_reference,
+        psych_reference
+    ],
+    "features":[
+        age,
+        sex,
+        handedness,
+        marital_status,
+        race
     ],
 
     "images_path" : "data/ADNI3 T1 AXIAL 54 DEPTH/ADNI/*/*/*/*",
     "image_format" : "dcm",
     "getImageID": lambda path : path.split("\\")[-1],
     "image_input_shape" : (54, 78, 78, 1),
+    "read_image":preprocessing.loadDicom,
     "image_transformations":[preprocessing.normalize_process],
 
-    "features":[
-        age,
-        sex,
-        race
-    ],
-
     "classes" : ["CN","SMC","EMCI","MCI","LMCI","AD"],
-    
 }
 
-ADNI1_set = {
-    "name":"ADNI1_Complete 1Yr 1.5T",
+ADNI1_refs = [
+    {
+        "path": "data/ADNI1_Complete 1Yr 1.5T/ADNI1_Complete_1Yr_1.5T_4_14_2024.csv",
+        "features":{
+            "Image ID": {"column":"Image Data ID"},
+            "Patient ID":{"column":"Subject"},
+            "Roster ID":{
+                "column":"Subject",
+                "map": lambda x : str(int(x.split("_")[-1]))
+            },
+            "Visit Code":{"column":"Visit"},
+            "Age":{"column":"Age"},
+            "Sex":{
+                "column":"Sex",
+                "map": lambda x : {'M':[1,0], 'Male':[1,0], 'F':[0,1], 'Female':[0,1]}[x]
+            },
+            "Group":{
+                "column":"Group",
+                "map": lambda x : {"CN":0,"MCI":1, "AD":2, "Dementia":2}[x]
+            }
+        },
+        "keys":["Image ID"]
+    },
+    psych_reference,
+    vitals_reference,
+    demographic_reference
+]
 
-    "link":ADNI1_links,
-    
-    "features":[
-        memory_score,
-        age
-    ],
+ADNI1_set = {
+    "name" : "ADNI1_Complete 1Yr 1.5T",
+
+    "refs" : ADNI1_refs,
+    "features" : [memory_score, age],
 
     "images_path" : "data/ADNI1_Complete 1Yr 1.5T/ADNI/*/*/*/*/*.nii",
-    "getImageID": lambda path : path.split("\\")[-2],
+    "getImageID" : lambda path : path.split("\\")[-2],
     "image_format" : "nii",
     "image_input_shape" : (128, 128, 90, 1),
-    "image_transformations":[preprocessing.resize_process((128, 128, 90, 1)),preprocessing.normalize_process],
+    "read_image" : preprocessing.loadNii,
+    "image_transformations" : [
+        preprocessing.resize_process((128, 128, 90, 1)), 
+        preprocessing.normalize_process
+    ],
 
     "classes" : ["CN","MCI","AD"]
 }
@@ -411,7 +313,7 @@ ADNI1_set = {
 ADNI1_preprocessed_set = {
     "name":"ADNI1_Complete 1Yr 1.5T (preprocessed)",
 
-    "link":ADNI1_links,
+    "refs":ADNI1_refs,
     "features":[
         memory_score,
         executive_function,
@@ -424,27 +326,20 @@ ADNI1_preprocessed_set = {
     "getImageID": lambda path : path.split("\\")[-1].replace(".nii",""),
     "image_format" : "nii",
     "image_input_shape" : (256, 256, 180, 1),
+    "read_image":preprocessing.loadNii,
     "image_transformations":[],
 
     "classes" : ["CN","MCI","AD"],
 }
 
-#dataset_props = ADNI1_preprocessed_set
-
-#image_shape = dataset_props["image_input_shape"]
-#classes = dataset_props["classes"]
-#num_classes = len(classes)
-#
-#images_directory = dataset_props["images_path"]
-
-#ADNI_merge = "adni documentation/ADNIMERGE_13Apr2024.csv"
-#vitals = "adni documentation/VITALS_16Apr2024.csv"
-#demographic = "adni documentation/PTDEMOG_16Apr2024.csv"
 
 batchSize = 1
+epochSize = 1
 epochs = 5
-debug = True
-#architecture = 'ResNet'
 
-
-state = 0
+report_state = 0
+data_select_state = 1
+feature_select_state = 2
+data_browse_state = 3
+architecture_select_state = 4
+train_state = 5

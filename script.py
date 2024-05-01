@@ -1,9 +1,3 @@
+import interface
 
-import tensorflow as tf
-from tensorflow.keras import losses, metrics
-import preprocessing
-from interface import DataBrowser, App, PerformanceProfiler
-from architectures import buildModel
-import env
-
-ui_app = App()
+ui_app = interface.App()
