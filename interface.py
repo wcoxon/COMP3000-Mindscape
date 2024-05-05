@@ -17,6 +17,7 @@ from DataBrowser import DataBrowser
 from analytics import PerformanceProfiler
 
 plt.rcParams['toolbar']='None'
+plt.ion()
 
 class toggle():
     def __init__(self,rect,label=None):
@@ -45,12 +46,11 @@ class selection():
 
         button_height = rect[3]/len(options)
         for i,option in enumerate(options):
-            button_bottom = rect[1]+i*button_height
+            button_bottom = (rect[1]+rect[3])-(i+1)*button_height
             new_toggle = toggle([rect[0],button_bottom,rect[2],button_height],option)
             new_toggle.widget.on_clicked((lambda i: lambda event: self._click(i))(i))
             self.toggles.append(new_toggle)
         
-
     def on_clicked(self,func):
         self._click = func
         
@@ -150,17 +150,17 @@ class App():
         lossPlot = fig.add_subplot(212)
         plt.title("Loss / Batch")
         plt.grid(True)
-
+        
         for i,report in enumerate(self.reports):
             accuracyPlot.plot(range(len(report["accuracy"])),report["accuracy"], color=colours[i])
-            lossPlot.plot(range(len(report["loss"])),report["loss"], color=colours[i])
+            lossPlot.plot(range(len(report["loss"])),report["loss"], color=colours[i],label=report_names[i])
+            plt.legend()
         
         plt.get_current_fig_manager().window.state('zoomed')
         plt.show(block=True)
 
     def selectDataset(self):
 
-        plt.style.use('default')
         fig = plt.figure(figsize=(4,4))
 
         datasets=[env.ADNI3_set,env.ADNI1_set,env.ADNI1_preprocessed_set]
@@ -168,9 +168,6 @@ class App():
 
         list_area = [0.25,0.25,0.5,0.5]
         options_menu = selection("select a dataset", list_area, dataset_options)
-
-
-        
 
         def proceed(event):
             if options_menu.selected==None: return
@@ -187,12 +184,12 @@ class App():
 
         proceed_button.on_clicked(proceed)
         back_button.on_clicked(back)
-        plt.show()
+        plt.show(block=True)
+
 
     def selectFeatures(self):
         feature_options = [feature_name for feature_name in env.features.keys()]
         
-        plt.style.use('default')
         fig = plt.figure(figsize=(4,4))
 
 
@@ -217,11 +214,10 @@ class App():
         proceed_button.on_clicked(proceed)
         back_button.on_clicked(back)
 
-        plt.show()
+        plt.show(block=True)
 
     def selectArchitecture(self):
     
-        plt.style.use('default')
         plt.figure(figsize=(8,4))
 
         architecture_options = ['VGG-16', 'UNet', 'ResNet']
@@ -245,19 +241,16 @@ class App():
             env.epochs = epoch_count_options[epoch_count_menu.selected[0]]
             self.state = env.train_state
             plt.close()
-
         def back(event):
             self.state = env.data_browse_state
             plt.close()
 
         proceed_button.on_clicked(proceed)
         return_button.on_clicked(back)
-        plt.show()
+        plt.show(block=True)
 
     def build_model(self):
         model = architectures.buildModel(self.dataset_manager, self.architecture)
-
-        #epoch_size = 64
 
         boundaries = [0.25*env.epochSize/env.batchSize, 0.5*env.epochSize/env.batchSize, 0.75*env.epochSize/env.batchSize]
         values = [1e-4, 5e-5, 1e-5, 1e-6]
@@ -281,4 +274,4 @@ class App():
             class_weight=self.dataset_manager.class_weight
         )
 
-        plt.show(block=True) # to prevent it from closing when training is done
+        plt.show(block=True)

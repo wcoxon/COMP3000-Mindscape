@@ -66,9 +66,6 @@ class MetricsFigure():
         self.loss = []
         self.accuracy = []
 
-        #plt.style.use('dark_background')
-        plt.ion()
-
         self.figure = plt.figure(figsize=(5,8))
 
         self.figure.text(0,1,"\n".join(stats),va="top")

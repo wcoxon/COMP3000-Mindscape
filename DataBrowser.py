@@ -48,7 +48,7 @@ class DataBrowser():
         self.proceed_button.on_clicked(self.proceed_to_model)
 
         plt.get_current_fig_manager().window.state('zoomed')
-        plt.show()
+        plt.show(block=True)
 
     def display_slider(self):
         volume_depth = self.dsm.image_shape[0]

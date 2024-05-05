@@ -43,7 +43,6 @@ def VGG_16_3D(inputs):
         Dense(units=16*t, activation='relu'),
         Dense(units=16*t, activation='relu'),
         #Dense(units=num_classes, activation='softmax')
-        
     ])
 
 
@@ -91,7 +90,11 @@ def unet_3d(inputs):
     decoder1 = decoder_block(decoder2, encoder1, 64)
     decoder0 = decoder_block(decoder1, encoder0, 32)
 
-    outputs = Conv3D(filters=1, kernel_size=1, activation='sigmoid')(decoder0)
+    x = Conv3D(filters=1, kernel_size=1, activation='sigmoid')(decoder0)
+
+    outputs = Flatten()(x)
+    #outputs = Dense(256, activation='relu')(outputs)
+    #outputs = Dense(128, activation='relu')(outputs)
 
     return Model(inputs=[inputs], outputs=[outputs])
 
@@ -117,7 +120,15 @@ def residual_block(x, filters, kernel_size=3, strides=1, activation='relu'):
     x = Activation(activation)(x)
     return x
 
+#import tensorflow_models.vision as vision
+
 def resnet_3d(inputs):
+    #base_model = vision.backbones.ResNet3D(model_id=50, input_specs=Input(shape=inputs.shape))
+
+    #x = base_model.output
+    #x = Flatten()(x)
+    #x = Dense(256, activation='relu')(x)
+    #x = Dense(128, activation='relu')(x)
 
     x = conv3d_bn(inputs, filters=64, kernel_size=7, strides=2)
     x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)
@@ -132,9 +143,11 @@ def resnet_3d(inputs):
     x = residual_block(x, 128)
 
     x = GlobalAveragePooling3D()(x)
-    outputs = Dense(512, activation='relu')(x)
+    #outputs = Dense(512, activation='relu')(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dense(128, activation='relu')(x)
 
-    return Model(inputs=inputs, outputs=outputs)
+    return Model(inputs=inputs, outputs=x)
 
 
 #full model
@@ -143,17 +156,20 @@ def buildModel(dm, architecture):
     csv_inputs = [Input(shape=feature["input_shape"]) for feature in dm.manifest["features"]]
 
     numerical_data = Concatenate()(csv_inputs)
-    numerical_branch = Dense(512, activation='relu')(numerical_data)
+    numerical_branch = Dense(64, activation='relu')(numerical_data)
+    numerical_branch = Dense(32, activation='relu')(numerical_data)
     
+
     image_input = Input(shape=dm.image_shape)
 
     if(architecture=='UNet'):
-        image_output =  unet_3d(image_input)(image_input)
+        image_output =  unet_3d(image_input)
     elif(architecture=='VGG-16'):
-        image_output =  VGG_16_3D(image_input)(image_input)
+        image_output =  VGG_16_3D(image_input)
     elif(architecture=='ResNet'):
-        image_output =  resnet_3d(image_input)(image_input)
-    image_output = Flatten()(image_output)
+        image_output =  resnet_3d(image_input)
+
+    #image_output = Flatten()(image_output)
 
 
     feature_inputs = [
@@ -161,9 +177,10 @@ def buildModel(dm, architecture):
         *csv_inputs
     ]
 
-    combined = Concatenate()([numerical_branch, image_output])
-    concat_dense = Dense(units=512,activation='relu')(combined)
-    #concat_dense = Dense(units=512,activation='relu')(concat_dense)
+    combined = Concatenate()([numerical_branch, image_output.output])
+
+    concat_dense = Dense(64, activation='relu')(combined)
+    concat_dense = Dense(32, activation='relu')(concat_dense)
     output = Dense(units=len(dm.classes))(concat_dense)
 
     return Model(inputs=feature_inputs, outputs=output)
