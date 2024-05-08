@@ -9,7 +9,7 @@ import env
 
 #the vgg-16 base, without the top
 def VGG_16_3D(inputs):
-    t = 16 #t for test lol just a scale of model depth, but hardcoding the proportional sizes if that makes sense like this layer will be the same relative scale from others
+    t = 16
     pool = 2
     
     return Sequential([

@@ -211,7 +211,6 @@ features = {
     "Systolic BP":systolic_BP,
     "Diastolic BP":diastolic_BP,
     "Group":group
-
 }
 
 ADNI3_set = {

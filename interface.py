@@ -73,7 +73,7 @@ class App():
         self.dataset_manager = None
         self.architecture = None
 
-        self.state = 0
+        self.state = env.report_state
 
         page_map={
             -1 : lambda : None,
@@ -263,7 +263,7 @@ class App():
         )
         model.summary()
 
-        training_data = self.dataset_manager.dataset.take(env.epochSize)#.cache("training_cache2")
+        training_data = self.dataset_manager.dataset.take(env.epochSize)
 
         model.fit(
             x=training_data.batch(env.batchSize),

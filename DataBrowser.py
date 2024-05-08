@@ -17,7 +17,6 @@ class DataBrowser():
         self.sampleCount = 3
         self.page = 0
 
-        #plt.style.use('dark_background')
         self.figure, self.ax = plt.subplots()
         self.gridspec = gridspec.GridSpec(nrows=2, ncols=self.sampleCount, height_ratios=[2, 1])
 

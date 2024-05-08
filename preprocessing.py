@@ -20,8 +20,6 @@ class dataset_manager():
         self.class_distribution = self.get_class_distribution()
         self.class_weight = {i:1/d for i, d in enumerate(self.class_distribution)}
 
-        #self.dataset = self.generator_dataset()
-
     def get_class_distribution(self):
 
         class_counts = np.array([0.0]*len(self.classes))
@@ -86,8 +84,6 @@ class dataset_manager():
         
         if(self.manifest["image_format"]=="nii"): volume = loadNii(path_string,self.manifest["image_transformations"])
         elif(self.manifest["image_format"]=="dcm"): volume = loadDicom(path_string,self.manifest["image_input_shape"])
-
-        #volume = self.manifest["read_image"](path_string)
 
         metadata = self.getMeta({"Image ID" : imageID}) # query CSV data
 
