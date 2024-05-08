@@ -123,12 +123,6 @@ def residual_block(x, filters, kernel_size=3, strides=1, activation='relu'):
 #import tensorflow_models.vision as vision
 
 def resnet_3d(inputs):
-    #base_model = vision.backbones.ResNet3D(model_id=50, input_specs=Input(shape=inputs.shape))
-
-    #x = base_model.output
-    #x = Flatten()(x)
-    #x = Dense(256, activation='relu')(x)
-    #x = Dense(128, activation='relu')(x)
 
     x = conv3d_bn(inputs, filters=64, kernel_size=7, strides=2)
     x = MaxPooling3D(pool_size=3, strides=2, padding='same')(x)
@@ -143,7 +137,6 @@ def resnet_3d(inputs):
     x = residual_block(x, 128)
 
     x = GlobalAveragePooling3D()(x)
-    #outputs = Dense(512, activation='relu')(x)
     x = Dense(256, activation='relu')(x)
     x = Dense(128, activation='relu')(x)
 
@@ -168,8 +161,6 @@ def buildModel(dm, architecture):
         image_output =  VGG_16_3D(image_input)
     elif(architecture=='ResNet'):
         image_output =  resnet_3d(image_input)
-
-    #image_output = Flatten()(image_output)
 
 
     feature_inputs = [
