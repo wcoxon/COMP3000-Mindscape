@@ -294,7 +294,7 @@ ADNI1_set = {
     "name" : "ADNI1_Complete 1Yr 1.5T",
 
     "refs" : ADNI1_refs,
-    "features" : [memory_score, age],
+    "features" : [],
 
     "images_path" : "data/ADNI1_Complete 1Yr 1.5T/ADNI/*/*/*/*/*.nii",
     "getImageID" : lambda path : path.split("\\")[-2],
@@ -313,13 +313,7 @@ ADNI1_preprocessed_set = {
     "name":"ADNI1_Complete 1Yr 1.5T (preprocessed)",
 
     "refs":ADNI1_refs,
-    "features":[
-        memory_score,
-        executive_function,
-        executive_function_2,
-        visuo_spatial,
-        language_cognition
-    ],
+    "features":[],
 
     "images_path" : "data/preprocessed/256_256_180/*.nii",
     "getImageID": lambda path : path.split("\\")[-1].replace(".nii",""),
